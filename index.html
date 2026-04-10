@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>法研社 AI 助手</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@300;400;500&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans TC', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* 背景圖 */
+  #bg {
+    position: fixed;
+    inset: 0;
+    background-image: url('bg.webp.jpg');
+    background-size: cover;
+    background-position: center top;
+    z-index: 0;
+  }
+
+  /* 漸層遮罩：底部加深讓 UI 可讀，保留上方圖的氛圍 */
+  #bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(10, 5, 25, 0.15) 0%,
+      rgba(10, 5, 25, 0.25) 40%,
+      rgba(10, 5, 25, 0.65) 70%,
+      rgba(10, 5, 25, 0.85) 100%
+    );
+  }
+
+  /* 主介面 */
+  #app {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    gap: 10px;
+  }
+
+  /* 頂部標題 */
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    padding: 10px 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+
+  .char-icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff8c42, #c44dff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 14px rgba(196,77,255,0.45);
+    flex-shrink: 0;
+    animation: float 3.5s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
+  .topbar-text { flex: 1; }
+
+  .topbar-name {
+    font-family: 'Nunito', sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    color: white;
+    letter-spacing: 0.3px;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.5);
+  }
+
+  .topbar-sub {
+    font-size: 10px;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 1.5px;
+    font-family: 'Orbitron', monospace;
+    margin-top: 2px;
+  }
+
+  .online-pill {
+    background: rgba(0,255,136,0.12);
+    border: 1px solid rgba(0,255,136,0.35);
+    border-radius: 20px;
+    padding: 4px 11px;
+    font-size: 9px;
+    color: #00ff88;
+    font-family: 'Orbitron', monospace;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  .online-pill::before {
+    content: '';
+    width: 5px; height: 5px;
+    background: #00ff88;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #00ff88;
+    animation: blink 1.5s infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+  /* 聊天區 */
+  #chat-container {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 2px 2px 4px;
+    scroll-behavior: smooth;
+  }
+
+  #chat-container::-webkit-scrollbar { width: 3px; }
+  #chat-container::-webkit-scrollbar-thumb {
+    background: rgba(255,140,66,0.4);
+    border-radius: 2px;
+  }
+
+  .message {
+    display: flex;
+    gap: 8px;
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes popIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .message.user { flex-direction: row-reverse; }
+
+  .msg-av {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    margin-top: 2px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+
+  .msg-av.ai {
+    background: linear-gradient(135deg, #ff8c42, #c44dff);
+  }
+
+  .msg-av.me {
+    background: linear-gradient(135deg, #4d8cff, #00c4ff);
+    font-family: 'Orbitron', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    color: white;
+  }
+
+  .bubble {
+    max-width: 74%;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.68;
+    border-radius: 16px;
+  }
+
+  .message.ai .bubble {
+    background: rgba(20, 10, 40, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 140, 66, 0.2);
+    border-bottom-left-radius: 4px;
+    color: rgba(255,245,235,0.93);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  .message.user .bubble {
+    background: rgba(255, 120, 50, 0.65);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,160,80,0.3);
+    border-bottom-right-radius: 4px;
+    color: white;
+    box-shadow: 0 4px 16px rgba(255,100,30,0.25);
+  }
+
+  .bubble-name {
+    font-size: 10px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+    font-family: 'Nunito', sans-serif;
+  }
+
+  .message.ai .bubble-name { color: rgba(255,160,80,0.85); }
+  .message.user .bubble-name { color: rgba(255,255,255,0.65); text-align: right; }
+
+  /* 打字動畫 */
+  .typing { display: flex; gap: 4px; align-items: center; padding: 2px 0; }
+  .typing span {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    animation: tdot 1s infinite;
+  }
+  .typing span:nth-child(1) { background: #ff8c42; }
+  .typing span:nth-child(2) { background: #c44dff; animation-delay: 0.15s; }
+  .typing span:nth-child(3) { background: #ff8c42; animation-delay: 0.3s; }
+
+  @keyframes tdot {
+    0%,100% { transform: translateY(0); opacity:0.4; }
+    50% { transform: translateY(-6px); opacity:1; }
+  }
+
+  /* 快捷提示 */
+  #hints {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .hint {
+    padding: 5px 13px;
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.13);
+    border-radius: 20px;
+    font-size: 11px;
+    color: rgba(255,240,220,0.8);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 600;
+  }
+
+  .hint:hover {
+    background: rgba(255,140,66,0.2);
+    border-color: rgba(255,140,66,0.4);
+    color: white;
+    box-shadow: 0 0 12px rgba(255,140,66,0.2);
+  }
+
+  /* 輸入列 */
+  #input-wrap {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    background: rgba(15, 8, 35, 0.55);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 22px;
+    padding: 8px 8px 8px 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  #user-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 13px;
+    color: rgba(255,245,230,0.95);
+    resize: none;
+    min-height: 22px;
+    max-height: 100px;
+    line-height: 1.5;
+  }
+
+  #user-input::placeholder {
+    color: rgba(255,200,150,0.35);
+    font-style: italic;
+  }
+
+  #send-btn {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, #ff8c42, #c44dff);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    box-shadow: 0 4px 14px rgba(255,100,30,0.4);
+  }
+
+  #send-btn:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(255,100,30,0.5); }
+  #send-btn:active { transform: scale(0.95); }
+  #send-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  #send-btn svg { width: 16px; height: 16px; fill: white; }
+
+  .footer-note {
+    text-align: center;
+    font-size: 9px;
+    color: rgba(255,200,150,0.25);
+    letter-spacing: 1.5px;
+    font-family: 'Orbitron', monospace;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+
+<div id="bg"></div>
+
+<div id="app">
+  <div id="topbar">
+    <div class="char-icon">🎧</div>
+    <div class="topbar-text">
+      <div class="topbar-name">LEX · 法研社 AI 助手</div>
+      <div class="topbar-sub">NKUPU LAW SOCIETY</div>
+    </div>
+    <div class="online-pill">ONLINE</div>
+  </div>
+
+  <div id="chat-container">
+    <div class="message ai">
+      <div class="msg-av ai">✨</div>
+      <div class="bubble">
+        <div class="bubble-name">LEX</div>
+        嘿～我是法研社的 AI 助手 🎧<br><br>
+        可以幫你：<br>
+        🌆 <strong>Notion 操作</strong>教學<br>
+        📋 <strong>社團架構</strong>與幹部資訊<br>
+        💡 任何<strong>社團相關問題</strong>
+      </div>
+    </div>
+  </div>
+
+  <div id="hints">
+    <div class="hint" onclick="sendHint('怎麼設定頁面權限？')">⚙ 頁面權限</div>
+    <div class="hint" onclick="sendHint('社團幹部有哪些？')">🏛 幹部名單</div>
+    <div class="hint" onclick="sendHint('如何建立小組協作空間？')">🔗 小組空間</div>
+    <div class="hint" onclick="sendHint('Notion 資料庫怎麼用？')">📊 資料庫</div>
+  </div>
+
+  <div id="input-wrap">
+    <textarea id="user-input" placeholder="跟 LEX 說點什麼..." rows="1"></textarea>
+    <button id="send-btn" onclick="sendMessage()">
+      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+  </div>
+  <div class="footer-note">POWERED BY GEMINI AI · 北大法研社資訊組</div>
+</div>
+
+<script>
+// ================================
+// ⚠️ 在這裡填入你的 Gemini API 金鑰
+const GEMINI_API_KEY = '在這裡貼上你的金鑰';
+// ================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+let history = [];
+let loading = false;
+const chat = document.getElementById('chat-container');
+const input = document.getElementById('user-input');
+const btn = document.getElementById('send-btn');
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+});
+
+function sendHint(t) { input.value = t; sendMessage(); }
+
+function addMsg(role, content) {
+  const d = document.createElement('div');
+  d.className = `message ${role === 'model' ? 'ai' : 'user'}`;
+  const fmt = content
+    .replace(/\n/g, '<br>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  if (role === 'model') {
+    d.innerHTML = `<div class="msg-av ai">✨</div><div class="bubble"><div class="bubble-name">LEX</div>${fmt}</div>`;
+  } else {
+    d.innerHTML = `<div class="msg-av me">YOU</div><div class="bubble"><div class="bubble-name" style="text-align:right">你</div>${fmt}</div>`;
+  }
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function addTyping() {
+  const d = document.createElement('div');
+  d.className = 'message ai'; d.id = 'typing';
+  d.innerHTML = `<div class="msg-av ai">✨</div><div class="bubble"><div class="bubble-name">LEX</div><div class="typing"><span></span><span></span><span></span></div></div>`;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text || loading) return;
+  input.value = ''; input.style.height = 'auto';
+  loading = true; btn.disabled = true;
+  addMsg('user', text);
+  history.push({ role: 'user', parts: [{ text }] });
+  addTyping();
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: history
+        })
+      }
+    );
+    const data = await res.json();
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '⚠️ 系統忙碌中，稍後再試！';
+    document.getElementById('typing')?.remove();
+    addMsg('model', reply);
+    history.push({ role: 'model', parts: [{ text: reply }] });
+  } catch(e) {
+    document.getElementById('typing')?.remove();
+    addMsg('model', '⚠️ 連線中斷，請稍後再試，或找資訊長簡輝恩 🙏');
+  }
+  loading = false; btn.disabled = false; input.focus();
+}
+</script>
+</body>
+</html>
